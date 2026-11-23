@@ -28,16 +28,41 @@ public class HipFile
     public Section_DICT DICT;
     public Section_HIPB HIPB;
 
-    public Game game;
-    public Platform platform;
+    /// <summary>
+    /// The game this archive targets. Setting it also sets <see cref="Section_AHDR.Game"/> on every asset header.
+    /// </summary>
+    public Game game
+    {
+        get;
+        set
+        {
+            field = value;
+            foreach (var AHDR in DICT?.ATOC.AHDRList ?? [])
+                AHDR.Game = value;
+        }
+    }
+
+    /// <summary>
+    /// The platform this archive targets. Setting it also sets <see cref="Section_AHDR.Platform"/> on every asset header.
+    /// </summary>
+    public Platform platform
+    {
+        get;
+        set
+        {
+            field = value;
+            foreach (var AHDR in DICT?.ATOC.AHDRList ?? [])
+                AHDR.Platform = value;
+        }
+    }
 
     public HipFile(Game game, Platform platform, Section_PACK PACK, Section_DICT DICT, Section_HIPB HIPB)
     {
-        this.game = game;
-        this.platform = platform;
         this.PACK = PACK;
         this.DICT = DICT;
         this.HIPB = HIPB;
+        this.game = game;
+        this.platform = platform;
     }
 
     private HipFile(string fileName, bool isFromINI = false)
@@ -56,8 +81,10 @@ public class HipFile
         using (var reader = new BigEndianBinaryReader(new FileStream(fileName, FileMode.Open)))
         {
             _ = new Section_HIPA(reader);
-            PACK = new Section_PACK(reader, out game, out platform);
-            DICT = new Section_DICT(reader, platform);
+            PACK = new Section_PACK(reader, out var packGame, out var packPlatform);
+            DICT = new Section_DICT(reader, packPlatform);
+            game = packGame;
+            platform = packPlatform;
             _ = new Section_STRM(reader);
             if (reader.BaseStream.Position != reader.BaseStream.Length)
                 HIPB = new Section_HIPB(reader);
@@ -96,12 +123,6 @@ public class HipFile
 
         if (platform == Platform.Unknown && HIPB != null && HIPB.ScoobyPlatform != Platform.Unknown)
             platform = HIPB.ScoobyPlatform;
-
-        foreach (var AHDR in DICT.ATOC.AHDRList)
-        {
-            AHDR.Game = game;
-            AHDR.Platform = platform;
-        }
     }
 
     private static Game GetGame(string v) => v switch
@@ -245,11 +266,7 @@ public class HipFile
                     LHDR.assetIDlist.Remove(AHDR.assetID);
             }
             else
-            {
                 AHDR.data = value;
-                AHDR.Game = game;
-                AHDR.Platform = platform;
-            }
         }
     }
 
